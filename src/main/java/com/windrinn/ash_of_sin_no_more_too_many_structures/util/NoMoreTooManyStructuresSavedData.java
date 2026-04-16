@@ -166,6 +166,7 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
                 overlapCandidates.addAll(list);
             }
         }
+
         List<UUID> toRemove = new ArrayList<>();
         for (PlacedObject existing : overlapCandidates) {
             if (!existing.aabb.intersects(aabb)) continue;
@@ -180,18 +181,15 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
         if (!NoMoreTooManyStructuresConfig.ONLY_OVERLAP.get()) {
             Vec3 centerVec = new Vec3(center.getX(), center.getY(), center.getZ());
             long count = placedObjects.values().stream()
-                    .filter(obj -> {
-                        if (isWhitelisted) return false;
-                        if (obj.whitelisted) return false;
-                        return obj.aabb.getCenter().distanceToSqr(centerVec) <= radius * radius;
-                    })
+                    .filter(obj -> !obj.whitelisted)
+                    .filter(obj -> obj.aabb.getCenter().distanceToSqr(centerVec) <= radius * radius)
                     .count();
             if (count >= maxNearby) {
                 return PlacementResult.deny("density");
             }
         }
 
-        return PlacementResult.allow();
+        return toRemove.isEmpty() ? PlacementResult.allow() : PlacementResult.allow(toRemove);
     }
 
     public static class PlacementResult {
