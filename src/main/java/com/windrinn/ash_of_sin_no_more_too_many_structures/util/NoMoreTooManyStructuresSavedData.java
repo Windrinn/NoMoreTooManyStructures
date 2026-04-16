@@ -115,7 +115,7 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
         final UUID uuid;
         final AABB aabb;
         final String type;
-        final boolean whitelisted;   // 新增
+        final boolean whitelisted;
 
         PlacedObject(AABB aabb, String type, boolean whitelisted) {
             this(UUID.randomUUID(), aabb, type, whitelisted);
