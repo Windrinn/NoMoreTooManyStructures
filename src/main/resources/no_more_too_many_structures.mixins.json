@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.windrinn.ash_of_sin_no_more_too_many_structures.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "no_more_too_many_structures.refmap.json",
+  "mixins": [
+    "ChunkGeneratorMixin",
+    "FeatureMixin",
+    "StructureManagerAccessor"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
