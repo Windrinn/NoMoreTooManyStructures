@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.phys.AABB;
@@ -50,6 +51,8 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
     }
 
     public void addPlacedObject(AABB aabb, String type, boolean whitelisted) {
+        String normalizedType = ResourceLocation.tryParse(type).toString();
+
         Set<ChunkPos> covered = getCoveredChunks(aabb);
         for (ChunkPos cp : covered) {
             List<PlacedObject> list = objectsByChunk.get(cp);
@@ -57,7 +60,7 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
                 for (PlacedObject obj : list) {
                     if (obj.aabb.equals(aabb)) {
                         if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
-                            LOGGER.debug("Duplicate structure/feature {} at {}, skipping record", type, aabb.getCenter());
+                            LOGGER.debug("Duplicate structure/feature {} at {}, skipping record", normalizedType, aabb.getCenter());
                         }
                         return;
                     }
@@ -65,7 +68,7 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
             }
         }
 
-        PlacedObject obj = new PlacedObject(aabb, type, whitelisted);
+        PlacedObject obj = new PlacedObject(aabb, normalizedType, whitelisted);
         placedObjects.put(obj.uuid, obj);
 
         for (ChunkPos cp : covered) {
@@ -158,6 +161,8 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
     }
 
     public PlacementResult checkPlacement(BlockPos center, AABB aabb, String type, int maxNearby, double radius, boolean isWhitelisted) {
+        String normalizedType = ResourceLocation.tryParse(type).toString();
+
         Set<ChunkPos> covered = getCoveredChunks(aabb);
         List<PlacedObject> overlapCandidates = new ArrayList<>();
         for (ChunkPos cp : covered) {
@@ -171,6 +176,11 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
         for (PlacedObject existing : overlapCandidates) {
             if (!existing.aabb.intersects(aabb)) continue;
 
+            if (existing.type.equals(normalizedType)) {
+                LOGGER.debug("Self-overlap detected for {}, skipping rejection", normalizedType);
+                continue;
+            }
+
             if (isWhitelisted && !existing.whitelisted) {
                 toRemove.add(existing.uuid);
             } else {
@@ -181,6 +191,13 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
         if (!NoMoreTooManyStructuresConfig.ONLY_OVERLAP.get()) {
             Vec3 centerVec = new Vec3(center.getX(), center.getY(), center.getZ());
             long count = placedObjects.values().stream()
+                    .filter(obj -> {
+                        if (obj.type.equals(normalizedType) && obj.aabb.intersects(aabb)) {
+                            LOGGER.debug("Self-density exclusion for {}", normalizedType);
+                            return false;
+                        }
+                        return true;
+                    })
                     .filter(obj -> !obj.whitelisted)
                     .filter(obj -> obj.aabb.getCenter().distanceToSqr(centerVec) <= radius * radius)
                     .count();
