@@ -219,4 +219,10 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
         public String getDenyReason() { return denyReason; }
         public List<UUID> getToRemove() { return Collections.unmodifiableList(toRemove); }
     }
+
+    public void clearAll() {
+        placedObjects.clear();
+        objectsByChunk.clear();
+        setDirty();
+    }
 }

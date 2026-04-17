@@ -33,6 +33,7 @@ public class NoMoreTooManyStructuresConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> BLACKLIST_FEATURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IGNORE_STRUCTURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IGNORE_FEATURES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> AUTO_RESET_DIMENSIONS;
     public static final ForgeConfigSpec.BooleanValue DEBUG;
 
     private static final Set<ResourceLocation> WHITELIST_STRUCTURES_SET = new HashSet<>();
@@ -100,6 +101,20 @@ public class NoMoreTooManyStructuresConfig {
                         "minecraft:random_boolean_selector",
                         "minecraft:block_column"
                 ), Predicates.alwaysTrue());
+
+        AUTO_RESET_DIMENSIONS = builder
+                .comment("Dimensions whose No-More-Too-Many-Structures data will be cleared automatically when no players are present. " +
+                        "Example: 'minecraft:the_end'")
+                .defineList("autoResetDimensions", Arrays.asList(
+                        "cataclysm_dimension:cataclysm_abyssal_depths",
+                        "cataclysm_dimension:cataclysm_bastion_lost",
+                        "cataclysm_dimension:cataclysm_eternal_frosthold",
+                        "cataclysm_dimension:cataclysm_forge_of_aeons",
+                        "cataclysm_dimension:cataclysm_infernos_maw",
+                        "cataclysm_dimension:cataclysm_pharaohs_bane",
+                        "cataclysm_dimension:cataclysm_sanctum_fallen",
+                        "cataclysm_dimension:cataclysm_souls_anvil"
+                ), obj -> obj instanceof String);
 
         DEBUG = builder
                 .comment("Enable debug logging for skipped structures/features.")
