@@ -51,6 +51,11 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
     }
 
     public void addPlacedObject(AABB aabb, String type, boolean whitelisted) {
+        if (aabb == null || type == null) {
+            LOGGER.error("Attempted to add null aabb or type");
+            return;
+        }
+
         String normalizedType = ResourceLocation.tryParse(type).toString();
 
         Set<ChunkPos> covered = getCoveredChunks(aabb);
@@ -183,22 +188,38 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
 
             if (isWhitelisted && !existing.whitelisted) {
                 toRemove.add(existing.uuid);
-            } else {
-                return PlacementResult.deny("overlap");
+                continue;
             }
+
+            if (isWhitelisted && existing.whitelisted) {
+                if (NoMoreTooManyStructuresConfig.ALLOW_WHITELIST_OVERLAP.get()) {
+                    continue;
+                } else {
+                    return PlacementResult.deny("overlap");
+                }
+            }
+
+            return PlacementResult.deny("overlap");
         }
 
         if (!NoMoreTooManyStructuresConfig.ONLY_OVERLAP.get()) {
             Vec3 centerVec = new Vec3(center.getX(), center.getY(), center.getZ());
             long count = placedObjects.values().stream()
                     .filter(obj -> {
-                        if (obj.type.equals(normalizedType) && obj.aabb.intersects(aabb)) {
-                            LOGGER.debug("Self-density exclusion for {}", normalizedType);
-                            return false;
+                        if (obj.type.equals(normalizedType)) {
+                            Vec3 existingCenter = obj.aabb.getCenter();
+                            Vec3 currentCenter = aabb.getCenter();
+                            double threshold = Math.min(aabb.getXsize(), aabb.getZsize()) * 0.5;
+                            threshold = Math.max(threshold, 8.0);
+                            if (existingCenter.distanceToSqr(currentCenter) <= threshold * threshold) {
+                                LOGGER.debug("Self-density exclusion for {}", normalizedType);
+                                return false;
+                            }
                         }
                         return true;
                     })
                     .filter(obj -> !obj.whitelisted)
+                    .filter(obj -> !obj.type.startsWith(normalizedType.split(":")[0] + ":"))
                     .filter(obj -> obj.aabb.getCenter().distanceToSqr(centerVec) <= radius * radius)
                     .count();
             if (count >= maxNearby) {
@@ -206,7 +227,12 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
             }
         }
 
-        return toRemove.isEmpty() ? PlacementResult.allow() : PlacementResult.allow(toRemove);
+        PlacementResult result = toRemove.isEmpty() ? PlacementResult.allow() : PlacementResult.allow(toRemove);
+
+        LOGGER.info("CheckPlacement for {}: allowed={}, reason={}, toRemoveCount={}",
+                normalizedType, result.isAllowed(), result.getDenyReason(), result.getToRemove().size());
+
+        return result;
     }
 
     public static class PlacementResult {

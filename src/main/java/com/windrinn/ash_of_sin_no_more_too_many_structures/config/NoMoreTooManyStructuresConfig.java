@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class NoMoreTooManyStructuresConfig {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -34,14 +35,15 @@ public class NoMoreTooManyStructuresConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IGNORE_STRUCTURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IGNORE_FEATURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> AUTO_RESET_DIMENSIONS;
+    public static final ForgeConfigSpec.BooleanValue ALLOW_WHITELIST_OVERLAP;
     public static final ForgeConfigSpec.BooleanValue DEBUG;
 
-    private static final Set<ResourceLocation> WHITELIST_STRUCTURES_SET = new HashSet<>();
-    private static final Set<ResourceLocation> WHITELIST_FEATURES_SET = new HashSet<>();
-    private static final Set<ResourceLocation> BLACKLIST_STRUCTURES_SET = new HashSet<>();
-    private static final Set<ResourceLocation> BLACKLIST_FEATURES_SET = new HashSet<>();
-    private static final Set<ResourceLocation> IGNORE_STRUCTURES_SET = new HashSet<>();
-    private static final Set<ResourceLocation> IGNORE_FEATURES_SET = new HashSet<>();
+    private static final Set<ResourceLocation> WHITELIST_STRUCTURES_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<ResourceLocation> WHITELIST_FEATURES_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<ResourceLocation> BLACKLIST_STRUCTURES_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<ResourceLocation> BLACKLIST_FEATURES_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<ResourceLocation> IGNORE_STRUCTURES_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<ResourceLocation> IGNORE_FEATURES_SET = ConcurrentHashMap.newKeySet();
     public final Path configPath;
 
     static {
@@ -116,6 +118,10 @@ public class NoMoreTooManyStructuresConfig {
                         "cataclysm_dimension:cataclysm_souls_anvil"
                 ), obj -> obj instanceof String);
 
+        ALLOW_WHITELIST_OVERLAP = builder
+                .comment("If true, whitelisted structures/features will be allowed to overlap with each other.")
+                .define("allowWhitelistOverlap", false);
+
         DEBUG = builder
                 .comment("Enable debug logging for skipped structures/features.")
                 .define("debug", false);
@@ -124,122 +130,98 @@ public class NoMoreTooManyStructuresConfig {
         NO_MORE_TOO_MANY_STRUCTURES_CONFIG = builder.build();
     }
 
+    public static void reloadSets() {
+        WHITELIST_STRUCTURES_SET.clear();
+        for (String s : WHITELIST_STRUCTURES.get()) {
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl != null) WHITELIST_STRUCTURES_SET.add(rl);
+        }
+
+        WHITELIST_FEATURES_SET.clear();
+        for (String s : WHITELIST_FEATURES.get()) {
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl != null) WHITELIST_FEATURES_SET.add(rl);
+        }
+
+        BLACKLIST_STRUCTURES_SET.clear();
+        for (String s : BLACKLIST_STRUCTURES.get()) {
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl != null) BLACKLIST_STRUCTURES_SET.add(rl);
+        }
+
+        BLACKLIST_FEATURES_SET.clear();
+        for (String s : BLACKLIST_FEATURES.get()) {
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl != null) BLACKLIST_FEATURES_SET.add(rl);
+        }
+
+        IGNORE_STRUCTURES_SET.clear();
+        for (String s : IGNORE_STRUCTURES.get()) {
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl != null) IGNORE_STRUCTURES_SET.add(rl);
+        }
+
+        IGNORE_FEATURES_SET.clear();
+        for (String s : IGNORE_FEATURES.get()) {
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl != null) IGNORE_FEATURES_SET.add(rl);
+        }
+    }
+
     public static void register(@NotNull ModLoadingContext context, @NotNull IEventBus modBus) {
-        context.registerConfig(ModConfig.Type.COMMON, NO_MORE_TOO_MANY_STRUCTURES_CONFIG);
-        modBus.addListener((ModConfigEvent.Reloading event) -> {
-            if (event.getConfig().getModId().equals(AshOfSin.MODID)) {
-                WHITELIST_STRUCTURES_SET.clear();
-                WHITELIST_FEATURES_SET.clear();
-                BLACKLIST_STRUCTURES_SET.clear();
-                BLACKLIST_FEATURES_SET.clear();
-                IGNORE_STRUCTURES_SET.clear();
-                IGNORE_FEATURES_SET.clear();
-            }
-        });
+        context.registerConfig(ModConfig.Type.COMMON, NO_MORE_TOO_MANY_STRUCTURES_CONFIG, "ash_of_sin/no_more_too_many_structures.toml");
+        modBus.addListener(NoMoreTooManyStructuresConfig::onConfigLoad);
+        modBus.addListener(NoMoreTooManyStructuresConfig::onConfigReload);
+    }
+
+    private static void onConfigLoad(ModConfigEvent.Loading event) {
+        if (event.getConfig().getModId().equals(AshOfSin.MODID)) {
+            reloadSets();
+        }
+    }
+
+    private static void onConfigReload(ModConfigEvent.Reloading event) {
+        if (event.getConfig().getModId().equals(AshOfSin.MODID)) {
+            reloadSets();
+        }
     }
 
     public static boolean isStructureWhitelisted(ResourceLocation id) {
-        if (WHITELIST_STRUCTURES_SET.isEmpty()) {
-            List<? extends String> list = WHITELIST_STRUCTURES.get();
-            for (String s : list) {
-                ResourceLocation parsed = ResourceLocation.tryParse(s);
-                if (parsed != null) {
-                    WHITELIST_STRUCTURES_SET.add(parsed);
-                } else {
-                    LOGGER.warn("Invalid structure registry name in whitelistStructures: {}", s);
-                }
-            }
-        }
         return WHITELIST_STRUCTURES_SET.contains(id);
     }
 
     public static boolean isFeatureWhitelisted(ResourceLocation id) {
-        if (WHITELIST_FEATURES_SET.isEmpty()) {
-            List<? extends String> list = WHITELIST_FEATURES.get();
-            for (String s : list) {
-                ResourceLocation parsed = ResourceLocation.tryParse(s);
-                if (parsed != null) {
-                    WHITELIST_FEATURES_SET.add(parsed);
-                } else {
-                    LOGGER.warn("Invalid feature registry name in whitelistFeatures: {}", s);
-                }
-            }
-        }
         return WHITELIST_FEATURES_SET.contains(id);
     }
 
-    // 判断是否在黑名单中（永不生成）
     public static boolean isStructureBlacklisted(ResourceLocation id) {
-        if (BLACKLIST_STRUCTURES_SET.isEmpty()) {
-            List<? extends String> list = BLACKLIST_STRUCTURES.get();
-            for (String s : list) {
-                ResourceLocation parsed = ResourceLocation.tryParse(s);
-                if (parsed != null) {
-                    BLACKLIST_STRUCTURES_SET.add(parsed);
-                } else {
-                    LOGGER.warn("Invalid structure registry name in blacklistStructures: {}", s);
-                }
-            }
-        }
         return BLACKLIST_STRUCTURES_SET.contains(id);
     }
 
     public static boolean isFeatureBlacklisted(ResourceLocation id) {
-        if (BLACKLIST_FEATURES_SET.isEmpty()) {
-            List<? extends String> list = BLACKLIST_FEATURES.get();
-            for (String s : list) {
-                ResourceLocation parsed = ResourceLocation.tryParse(s);
-                if (parsed != null) {
-                    BLACKLIST_FEATURES_SET.add(parsed);
-                } else {
-                    LOGGER.warn("Invalid feature registry name in blacklistFeatures: {}", s);
-                }
-            }
-        }
         return BLACKLIST_FEATURES_SET.contains(id);
     }
 
     public static boolean isStructureIgnored(ResourceLocation id) {
-        if (IGNORE_STRUCTURES_SET.isEmpty()) {
-            List<? extends String> list = IGNORE_STRUCTURES.get();
-            for (String s : list) {
-                ResourceLocation parsed = ResourceLocation.tryParse(s);
-                if (parsed != null) {
-                    IGNORE_STRUCTURES_SET.add(parsed);
-                } else {
-                    LOGGER.warn("Invalid structure registry name in ignoreStructures: {}", s);
-                }
-            }
-        }
         return IGNORE_STRUCTURES_SET.contains(id);
     }
 
     public static boolean isFeatureIgnored(ResourceLocation id) {
-        if (IGNORE_FEATURES_SET.isEmpty()) {
-            List<? extends String> list = IGNORE_FEATURES.get();
-            for (String s : list) {
-                ResourceLocation parsed = ResourceLocation.tryParse(s);
-                if (parsed != null) {
-                    IGNORE_FEATURES_SET.add(parsed);
-                } else {
-                    LOGGER.warn("Invalid feature registry name in ignoreFeatures: {}", s);
-                }
-            }
-        }
         return IGNORE_FEATURES_SET.contains(id);
     }
 
-    public NoMoreTooManyStructuresConfig() {
+    private NoMoreTooManyStructuresConfig() {
         this.configPath = FMLPaths.CONFIGDIR.get().resolve("ash_of_sin/no_more_too_many_structures.toml");
         loadConfig();
     }
 
-    public void loadConfig() {
+    public static void loadConfig() {
+        Path configPath = FMLPaths.CONFIGDIR.get().resolve("ash_of_sin/no_more_too_many_structures.toml");
         if (!Files.exists(configPath)) {
             try {
                 Files.createDirectories(configPath.getParent());
             } catch (IOException e) {
-                throw new RuntimeException("Failed to create default no more too many structures config.", e);
+                throw new RuntimeException("Failed to create config directory", e);
             }
         }
         final CommentedFileConfig fileConfig = CommentedFileConfig.builder(configPath)
