@@ -202,7 +202,7 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
             return PlacementResult.deny("overlap");
         }
 
-        if (!NoMoreTooManyStructuresConfig.ONLY_OVERLAP.get()) {
+        if (!isWhitelisted && !NoMoreTooManyStructuresConfig.ONLY_OVERLAP.get()) {
             Vec3 centerVec = new Vec3(center.getX(), center.getY(), center.getZ());
             long count = placedObjects.values().stream()
                     .filter(obj -> {
