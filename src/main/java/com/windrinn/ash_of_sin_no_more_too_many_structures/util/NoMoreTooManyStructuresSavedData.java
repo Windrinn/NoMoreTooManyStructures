@@ -182,7 +182,9 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
             if (!existing.aabb.intersects(aabb)) continue;
 
             if (existing.type.equals(normalizedType)) {
-                LOGGER.debug("Self-overlap detected for {}, skipping rejection", normalizedType);
+                if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
+                    LOGGER.debug("Self-overlap detected for {}, skipping rejection", normalizedType);
+                }
                 continue;
             }
 
@@ -212,7 +214,9 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
                             double threshold = Math.min(aabb.getXsize(), aabb.getZsize()) * 0.5;
                             threshold = Math.max(threshold, 8.0);
                             if (existingCenter.distanceToSqr(currentCenter) <= threshold * threshold) {
-                                LOGGER.debug("Self-density exclusion for {}", normalizedType);
+                                if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
+                                    LOGGER.debug("Self-density exclusion for {}", normalizedType);
+                                }
                                 return false;
                             }
                         }
@@ -229,8 +233,10 @@ public class NoMoreTooManyStructuresSavedData extends SavedData {
 
         PlacementResult result = toRemove.isEmpty() ? PlacementResult.allow() : PlacementResult.allow(toRemove);
 
-        LOGGER.info("CheckPlacement for {}: allowed={}, reason={}, toRemoveCount={}",
-                normalizedType, result.isAllowed(), result.getDenyReason(), result.getToRemove().size());
+        if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
+            LOGGER.info("CheckPlacement for {}: allowed={}, reason={}, toRemoveCount={}",
+                    normalizedType, result.isAllowed(), result.getDenyReason(), result.getToRemove().size());
+        }
 
         return result;
     }
