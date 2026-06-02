@@ -31,6 +31,10 @@ public class FeatureMixin<FC extends FeatureConfiguration> {
     )
     private void checkOverlap(FC config, WorldGenLevel level, ChunkGenerator generator,
                               RandomSource random, BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+        if (level instanceof ServerLevel) {
+            return;
+        }
+
         Feature<?> feature = (Feature<?>) (Object) this;
         ResourceLocation id = ForgeRegistries.FEATURES.getKey(feature);
         if (id == null) return;

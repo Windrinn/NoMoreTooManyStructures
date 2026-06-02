@@ -9,6 +9,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.phys.AABB;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,7 +17,7 @@ import org.apache.logging.log4j.Logger;
 public class NoMoreTooManyStructuresPlacementValidator {
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public static boolean canPlaceStructure(LevelAccessor level, BoundingBox box, String structureName, BlockPos center) {
+    public static boolean canPlaceStructure(LevelAccessor level, BoundingBox box, Structure structure, String structureName, BlockPos center) {
         NoMoreTooManyStructuresSavedData data = getData(level);
         if (data == null) return true;
 
@@ -24,7 +25,24 @@ public class NoMoreTooManyStructuresPlacementValidator {
         AABB aabb = new AABB(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ());
 
         ResourceLocation id = ResourceLocation.tryParse(structureName);
-        boolean isWhitelisted = id != null && NoMoreTooManyStructuresConfig.isStructureWhitelisted(id);
+
+        boolean isWhitelisted = id != null && NoMoreTooManyStructuresConfig.isStructureWhitelisted(id, structure);
+        boolean isIgnored = id != null && NoMoreTooManyStructuresConfig.isStructureIgnored(id, structure);
+        boolean isBlacklisted = id != null && NoMoreTooManyStructuresConfig.isStructureBlacklisted(id, structure);
+
+        if (isIgnored) {
+            if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
+                LOGGER.debug("Structure {} is ignored, generating without checks", structureName);
+            }
+            return true;
+        }
+        if (isBlacklisted) {
+            if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
+                LOGGER.debug("Structure {} is blacklisted, skipping generation.", structureName);
+            }
+            return false;
+        }
+
         NoMoreTooManyStructuresSavedData.PlacementResult result = data.checkPlacement(
                 center, aabb, structureName,
                 NoMoreTooManyStructuresConfig.MAX_NEARBY.get(),
@@ -51,7 +69,6 @@ public class NoMoreTooManyStructuresPlacementValidator {
                         structureName, result.getToRemove().size());
             }
         }
-
         return true;
     }
 

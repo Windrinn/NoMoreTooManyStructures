@@ -57,7 +57,7 @@ public class ChunkGeneratorMixin {
             LOGGER.debug("Structure id: {}", id);
         }
 
-        if (NoMoreTooManyStructuresConfig.isStructureIgnored(id)) {
+        if (NoMoreTooManyStructuresConfig.isStructureIgnored(id, structure)) {
             if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
                 LOGGER.debug("Structure {} is ignored, generating without checks and not recording", id);
             }
@@ -65,7 +65,7 @@ public class ChunkGeneratorMixin {
             return;
         }
 
-        if (NoMoreTooManyStructuresConfig.isStructureBlacklisted(id)) {
+        if (NoMoreTooManyStructuresConfig.isStructureBlacklisted(id, structure)) {
             if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
                 LOGGER.debug("Structure {} is blacklisted, skipping generation.", id);
             }
@@ -82,8 +82,9 @@ public class ChunkGeneratorMixin {
         int yCenter = (box.minY() + box.maxY()) / 2;
         BlockPos center = new BlockPos(chunkPos.getMinBlockX() + 8, yCenter, chunkPos.getMinBlockZ() + 8);
 
-        boolean isWhitelisted = NoMoreTooManyStructuresConfig.isStructureWhitelisted(id);
-        boolean canPlace = NoMoreTooManyStructuresPlacementValidator.canPlaceStructure(serverLevel, box, id.toString(), center);
+        boolean isWhitelisted = NoMoreTooManyStructuresConfig.isStructureWhitelisted(id, structure);
+        boolean canPlace = NoMoreTooManyStructuresPlacementValidator.canPlaceStructure(
+                serverLevel, box, structure, id.toString(), center);
         if (!canPlace) {
             if (NoMoreTooManyStructuresConfig.DEBUG.get()) {
                 LOGGER.debug("Skipping generation of {} due to placement check", id);

@@ -5,13 +5,22 @@ import com.electronwill.nightconfig.core.io.WritingMode;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Lists;
 import com.windrinn.ash_of_sin_no_more_too_many_structures.main.AshOfSin;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -44,6 +53,9 @@ public class NoMoreTooManyStructuresConfig {
     private static final Set<ResourceLocation> BLACKLIST_FEATURES_SET = ConcurrentHashMap.newKeySet();
     private static final Set<ResourceLocation> IGNORE_STRUCTURES_SET = ConcurrentHashMap.newKeySet();
     private static final Set<ResourceLocation> IGNORE_FEATURES_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<TagKey<Structure>> WHITELIST_STRUCTURES_TAGS_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<TagKey<Structure>> BLACKLIST_STRUCTURES_TAGS_SET = ConcurrentHashMap.newKeySet();
+    private static final Set<TagKey<Structure>> IGNORE_STRUCTURES_TAGS_SET = ConcurrentHashMap.newKeySet();
     public final Path configPath;
 
     static {
@@ -132,9 +144,15 @@ public class NoMoreTooManyStructuresConfig {
 
     public static void reloadSets() {
         WHITELIST_STRUCTURES_SET.clear();
+        WHITELIST_STRUCTURES_TAGS_SET.clear();
         for (String s : WHITELIST_STRUCTURES.get()) {
-            ResourceLocation rl = ResourceLocation.tryParse(s);
-            if (rl != null) WHITELIST_STRUCTURES_SET.add(rl);
+            if (s.startsWith("#")) {
+                ResourceLocation rl = ResourceLocation.tryParse(s.substring(1));
+                if (rl != null) WHITELIST_STRUCTURES_TAGS_SET.add(TagKey.create(Registries.STRUCTURE, rl));
+            } else {
+                ResourceLocation rl = ResourceLocation.tryParse(s);
+                if (rl != null) WHITELIST_STRUCTURES_SET.add(rl);
+            }
         }
 
         WHITELIST_FEATURES_SET.clear();
@@ -144,9 +162,15 @@ public class NoMoreTooManyStructuresConfig {
         }
 
         BLACKLIST_STRUCTURES_SET.clear();
+        BLACKLIST_STRUCTURES_TAGS_SET.clear();
         for (String s : BLACKLIST_STRUCTURES.get()) {
-            ResourceLocation rl = ResourceLocation.tryParse(s);
-            if (rl != null) BLACKLIST_STRUCTURES_SET.add(rl);
+            if (s.startsWith("#")) {
+                ResourceLocation rl = ResourceLocation.tryParse(s.substring(1));
+                if (rl != null) BLACKLIST_STRUCTURES_TAGS_SET.add(TagKey.create(Registries.STRUCTURE, rl));
+            } else {
+                ResourceLocation rl = ResourceLocation.tryParse(s);
+                if (rl != null) BLACKLIST_STRUCTURES_SET.add(rl);
+            }
         }
 
         BLACKLIST_FEATURES_SET.clear();
@@ -156,9 +180,15 @@ public class NoMoreTooManyStructuresConfig {
         }
 
         IGNORE_STRUCTURES_SET.clear();
+        IGNORE_STRUCTURES_TAGS_SET.clear();
         for (String s : IGNORE_STRUCTURES.get()) {
-            ResourceLocation rl = ResourceLocation.tryParse(s);
-            if (rl != null) IGNORE_STRUCTURES_SET.add(rl);
+            if (s.startsWith("#")) {
+                ResourceLocation rl = ResourceLocation.tryParse(s.substring(1));
+                if (rl != null) IGNORE_STRUCTURES_TAGS_SET.add(TagKey.create(Registries.STRUCTURE, rl));
+            } else {
+                ResourceLocation rl = ResourceLocation.tryParse(s);
+                if (rl != null) IGNORE_STRUCTURES_SET.add(rl);
+            }
         }
 
         IGNORE_FEATURES_SET.clear();
@@ -186,24 +216,107 @@ public class NoMoreTooManyStructuresConfig {
         }
     }
 
-    public static boolean isStructureWhitelisted(ResourceLocation id) {
-        return WHITELIST_STRUCTURES_SET.contains(id);
+    public static boolean isStructureWhitelisted(ResourceLocation id, Structure structure) {
+        if (id != null && WHITELIST_STRUCTURES_SET.contains(id)) return true;
+
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return false;
+        Registry<Structure> registry = server.registryAccess().registry(Registries.STRUCTURE).orElse(null);
+        if (registry == null) return false;
+
+        ResourceLocation key = registry.getKey(structure);
+        if (key == null) return false;
+        ResourceKey<Structure> resourceKey = ResourceKey.create(Registries.STRUCTURE, key);
+        Optional<Holder.Reference<Structure>> holderOpt = registry.getHolder(resourceKey);
+        Holder<Structure> holder = holderOpt.orElse(null);
+
+        for (TagKey<Structure> tagKey : WHITELIST_STRUCTURES_TAGS_SET) {
+            if (holder != null && holder.is(tagKey)) {
+                return true;
+            }
+            Optional<HolderSet.Named<Structure>> tag = registry.getTag(tagKey);
+            if (tag.isPresent()) {
+                for (Holder<Structure> h : tag.get()) {
+                    if (h.unwrapKey().map(resourceKey::equals).orElse(false)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     public static boolean isFeatureWhitelisted(ResourceLocation id) {
         return WHITELIST_FEATURES_SET.contains(id);
     }
 
-    public static boolean isStructureBlacklisted(ResourceLocation id) {
-        return BLACKLIST_STRUCTURES_SET.contains(id);
+    public static boolean isStructureBlacklisted(ResourceLocation id, Structure structure) {
+        if (id != null && BLACKLIST_STRUCTURES_SET.contains(id)) return true;
+
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return false;
+        Registry<Structure> registry = server.registryAccess().registry(Registries.STRUCTURE).orElse(null);
+        if (registry == null) return false;
+
+        ResourceLocation key = registry.getKey(structure);
+        if (key == null) return false;
+        ResourceKey<Structure> resourceKey = ResourceKey.create(Registries.STRUCTURE, key);
+
+        Optional<Holder.Reference<Structure>> holderOpt = registry.getHolder(resourceKey);
+        Holder<Structure> holder = holderOpt.orElse(null);
+
+        for (TagKey<Structure> tagKey : BLACKLIST_STRUCTURES_TAGS_SET) {
+            if (holder != null && holder.is(tagKey)) {
+                return true;
+            }
+            Optional<HolderSet.Named<Structure>> tag = registry.getTag(tagKey);
+            if (tag.isPresent()) {
+                for (Holder<Structure> h : tag.get()) {
+                    if (h.unwrapKey().map(resourceKey::equals).orElse(false)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean isStructureTagBlacklisted(TagKey<Structure> tagKey) {
+        return BLACKLIST_STRUCTURES_TAGS_SET.contains(tagKey);
     }
 
     public static boolean isFeatureBlacklisted(ResourceLocation id) {
         return BLACKLIST_FEATURES_SET.contains(id);
     }
 
-    public static boolean isStructureIgnored(ResourceLocation id) {
-        return IGNORE_STRUCTURES_SET.contains(id);
+    public static boolean isStructureIgnored(ResourceLocation id, Structure structure) {
+        if (id != null && IGNORE_STRUCTURES_SET.contains(id)) return true;
+
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return false;
+        Registry<Structure> registry = server.registryAccess().registry(Registries.STRUCTURE).orElse(null);
+        if (registry == null) return false;
+
+        ResourceLocation key = registry.getKey(structure);
+        if (key == null) return false;
+        ResourceKey<Structure> resourceKey = ResourceKey.create(Registries.STRUCTURE, key);
+        Optional<Holder.Reference<Structure>> holderOpt = registry.getHolder(resourceKey);
+        Holder<Structure> holder = holderOpt.orElse(null);
+
+        for (TagKey<Structure> tagKey : IGNORE_STRUCTURES_TAGS_SET) {
+            if (holder != null && holder.is(tagKey)) {
+                return true;
+            }
+            Optional<HolderSet.Named<Structure>> tag = registry.getTag(tagKey);
+            if (tag.isPresent()) {
+                for (Holder<Structure> h : tag.get()) {
+                    if (h.unwrapKey().map(resourceKey::equals).orElse(false)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     public static boolean isFeatureIgnored(ResourceLocation id) {
